@@ -231,13 +231,18 @@ def main():
     all_acked = False
 
     while not all_acked:
-        # 发送窗口内的数据包
-        while next_seq <= TOTAL_PACKETS and (next_seq - base) * MAX_PKT_SIZE < WINDOW_SIZE:
+        # 发送窗口内的数据包（按实际字节数控制，窗口=400字节）
+        while next_seq <= TOTAL_PACKETS:
+            # 计算当前窗口已占用的字节数（未确认包的实际payload之和）
+            window_bytes = sum(len(packets[seq - 1].payload)
+                               for seq in range(base, next_seq))
             pkt = packets[next_seq - 1]
-
-            # 使用预生成的payload（重传时复用同一份数据）
             payload = pkt.payload
             actual_len = len(payload)
+
+            # 如果加上当前包会超出窗口大小，停止发送
+            if window_bytes + actual_len > WINDOW_SIZE:
+                break
 
             flags = FLAG_RETRANS if pkt.is_retrans else 0
             data_header = create_header(TYPE_DATA, flags, pkt.seq_num, 0,
